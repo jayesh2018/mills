@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="jquery.min.js"></script>
+    <script src="fabric.min.js"></script>
+    <!-- <script src="utility.js"></script> -->
+    <script>
+        var x = 115
+        var y = 100
+        var stroke = 6
+        var ballStrokeWidth = 0.2
+        var lineAdjust = stroke * 0.5
+        var placeRadius = 8
+        var ballRadius = 18
+        var canvasHeight = 700
+        var canvasWidth = 800
+        var highlightedBall = 0
+        var vRadius = ballRadius
+        var vulnerableBalls = []
+        var immortalBalls = []
+        var adjacancyList = new Map()
+        var whiteBallMap = new Map()
+        var blackBallMap = new Map()
+        var placeMap = new Map()
+        var millsMap = new Map()
+        addEdge(adjacancyList, 0, 1, "H")
+        addEdge(adjacancyList, 0, 9, "V")
+        addEdge(adjacancyList, 1, 2, "H")
+        addEdge(adjacancyList, 1, 4, "V")
+        addEdge(adjacancyList, 2, 14, "V")
+        addEdge(adjacancyList, 3, 4, "H")
+        addEdge(adjacancyList, 3, 10, "V")
+        addEdge(adjacancyList, 4, 5, "H")
+        addEdge(adjacancyList, 4, 7, "V")
+        addEdge(adjacancyList, 5, 13, "V")
+        addEdge(adjacancyList, 6, 7, "H")
+        addEdge(adjacancyList, 6, 11, "V")
+        addEdge(adjacancyList, 7, 8, "H")
+        addEdge(adjacancyList, 8, 12, "V")
+        addEdge(adjacancyList, 9, 10, "H")
+        addEdge(adjacancyList, 9, 21, "V")
+        addEdge(adjacancyList, 10, 11, "H")
+        addEdge(adjacancyList, 10, 18, "V")
+        addEdge(adjacancyList, 11, 15, "V")
+        addEdge(adjacancyList, 12, 13, "H")
+        addEdge(adjacancyList, 12, 17, "V")
+        addEdge(adjacancyList, 13, 14, "H")
+        addEdge(adjacancyList, 13, 20, "V")
+        addEdge(adjacancyList, 14, 23, "V")
+        addEdge(adjacancyList, 15, 16, "H")
+        addEdge(adjacancyList, 16, 17, "H")
+        addEdge(adjacancyList, 16, 18, "V")
+        addEdge(adjacancyList, 18, 19, "H")
+        addEdge(adjacancyList, 19, 20, "H")
+        addEdge(adjacancyList, 19, 22, "V")
+        addEdge(adjacancyList, 21, 22, "H")
+        addEdge(adjacancyList, 22, 23, "H")
+
+        function addEdge(adj, u, v, wt) {
+            if (!adj.has(u)) {
+                adj.set(u, [])
+            }
+            if (!adj.has(v)) {
+                adj.set(v, [])
+            }
+            adj.get(u).push([v, wt])
+            adj.get(v).push([u, wt])
+        }
+
+        function printGraph(adj, V) {
+            for (i = 0; i < V; i++) {
+                str = "Vertex " + i + " makes an edge with "
+                for (item of adj.get(i)) {
+                    console.log(str + item[0] + " weight " + item[1])
+                }
+            }
+        }
+        class TwoStack {
+            constructor() {
+                this.top1 = -1
+                this.top2 = 9
+                this.arr = {}
+                this.xCoord = canvasWidth - x
+            }
+            getArr() {
+                return this.arr;
+            }
+            push1(obj) {
+                this.arr[++this.top1] = obj;
+            }
+            isEmpty() {
+                return this.top == -1
+            }
+            pop1() {
+                if (this.top1 != -1) {
+                    highlightedBall = this.arr[this.top1--]
+                    bringCenter(highlightedBall)
+                    return highlightedBall
+                } else {
+                    highlightedBall = null
+                    return -1;
+                }
+            }
+            push2(obj) {
+                this.arr[--this.top2] = obj;
+                let coord = this.xCoord
+                this.xCoord -= 12
+                return coord
+            }
+            pop2() {
+                return this.arr[this.top2++]
+            }
+        }
+        blackBall2Stack = new TwoStack();
+        whiteBall2Stack = new TwoStack();
+        // console.log(blackBall2Stack.getArr())
+
+        function createGameBoard(canvas) {
+            canvasHeight = canvas.height
+            canvasWidth = canvas.width
+            canvas.set({
+                'selection': false,
+                'evented': false
+            });
+            fabric.Image.fromURL('image4.jpg', function (img) {
+                img.set({
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    originX: 'left',
+                    originY: 'top'
+                });
+                canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+            });
+            rect1 = createRect(x, y, 2 * x, 2 * y);
+            rect2 = createRect(2 * x, 2 * y, 4 * x, 4 * y);
+            rect3 = createRect(3 * x, 3 * y, 6 * x, 6 * y);
+            place1 = createPlace(x, y);
+            place2 = createPlace(canvasWidth / 2, y);
+            place3 = createPlace(canvasWidth - x, y);
+            place4 = createPlace(2 * x, 2 * y);
+            place5 = createPlace(canvasWidth / 2, 2 * y);
+            place6 = createPlace(canvasWidth - 2 * x, 2 * y);
+            place7 = createPlace(3 * x, (canvasHeight / 2) - (y * 0.5));
+            place8 = createPlace(canvasWidth / 2, (canvasHeight / 2) - (y * 0.5));
+            place9 = createPlace(canvasWidth / 2 + 0.5 * x, (canvasHeight / 2) - (y * 0.5));
+            place10 = createPlace(x, canvasHeight / 2);
+            place11 = createPlace(2 * x, canvasHeight / 2);
+            place12 = createPlace(3 * x, canvasHeight / 2);
+            place13 = createPlace(canvasWidth / 2 + 0.5 * x, canvasHeight / 2);
+            place14 = createPlace(canvasWidth / 2 + 1.5 * x, canvasHeight / 2);
+            place15 = createPlace(canvasWidth / 2 + 2.5 * x, canvasHeight / 2);
+            place16 = createPlace(3 * x, (canvasHeight / 2) + (y * 0.5));
+            place17 = createPlace((canvasWidth / 2), (canvasHeight / 2) + (y * 0.5));
+            place18 = createPlace((canvasWidth / 2) + (0.5 * x), (canvasHeight / 2) + (y * 0.5));
+            place19 = createPlace(2 * x, canvasHeight - (2 * y));
+            place20 = createPlace(canvasWidth / 2, canvasHeight / 2 + (1.5 * y));
+            place21 = createPlace(canvasWidth - (2 * x), canvasHeight - (2 * y));
+            place22 = createPlace(x, canvasHeight - y);
+            place23 = createPlace(canvasWidth / 2, canvasHeight - y);
+            place24 = createPlace(canvasWidth - x, canvasHeight - y);
+            line1 = drawLine(canvasWidth / 2 - lineAdjust, y, canvasWidth / 2 - lineAdjust, 3 * y);
+            line2 = drawLine(((canvasWidth + x) / 2), canvasHeight / 2 - lineAdjust, canvasWidth - x, canvasHeight / 2 - 2.);
+            line3 = drawLine(canvasWidth / 2 - lineAdjust, canvasHeight - y, canvasWidth / 2 - lineAdjust, 4 * y);
+            line4 = drawLine(x, canvasHeight / 2 - lineAdjust, 3 * x, canvasHeight / 2 - lineAdjust);
+
+            canvas.add(rect1, rect2, rect3);
+            canvas.add(line1, line2, line3, line4);
+            canvas.add(place1, place2, place3, place4, place5, place6, place7, place8, place9, place10, place11, place12, place13, place14, place15, place16, place17, place18, place19, place20, place21, place22, place23, place24);
+            for (i = 0; i < 9; i++) {
+                ball1 = createBlackBall(x + 12 * i, y / 2);
+                // console.log(x + 12 * i + " " + y / 2)
+                blackBall2Stack.push1(ball1)
+                ball2 = createWhiteBall(x + 12 * i, canvasHeight - y / 2);
+                whiteBall2Stack.push1(ball2)
+                canvas.add(ball1, ball2);
+            }
+        }
+
+        function createRect(left, top, width, height) {
+            return new fabric.Rect({
+                left: left - lineAdjust,
+                top: top - lineAdjust,
+                stroke: 'black',
+                fill: 'rgba(0, 0, 0, 0)',
+                strokeWidth: stroke,
+                width: canvasWidth - width + lineAdjust,
+                height: canvasHeight - height + lineAdjust,
+                selectable: false,
+                evented: false,
+                hoverCursor: 'cursor',
+            });
+        }
+
+        function drawLine(x1, y1, x2, y2) {
+            return new fabric.Line([x1, y1, x2, y2], {
+                stroke: 'black',
+                strokeWidth: stroke,
+                selectable: false,
+                hoverCursor: 'cursor',
+            });
+        }
+        var i = 0
+
+        function createPlace(left, top) {
+            place = new fabric.Circle({
+                radius: placeRadius,
+                fill: 'black',
+                strokeWidth: 2,
+                left: left - 1 - placeRadius,
+                top: top - 1 - placeRadius,
+                selectable: false,
+                hoverCursor: 'cursor',
+                stroke: 'rgb(255,255,0)',
+                location: i,
+                status: 'highlighted',
+                type: 'place'
+            });
+            placeMap.set(i++, place)
+            return place
+        }
+
+        function getSimpleBall(left, top) {
+            return new fabric.Circle({
+                radius: ballRadius,
+                left: left - ballStrokeWidth / 2 - ballRadius,
+                top: top - ballStrokeWidth / 2 - ballRadius,
+                selectable: false,
+                type: 'ball',
+                strokeWidth: ballStrokeWidth,
+                hoverCursor: 'cursor',
+                location: -1,
+                // evented: false,
+            });
+        }
+
+        function createWhiteBall(left, top) {
+            let obj = getSimpleBall(left, top);
+            obj.set({
+                'stroke': 'black',
+                'player': 1,
+            });
+
+            obj.setGradient('fill', {
+                type: 'radial',
+                r1: ballRadius * 0.1,
+                r2: ballRadius,
+                x1: ballRadius,
+                y1: ballRadius,
+                x2: ballRadius,
+                y2: ballRadius,
+                colorStops: {
+                    0: 'grey',
+                    1: 'white'
+                }
+            });
+            return obj;
+        }
+
+
+        function createBlackBall(left, top) {
+            let obj = getSimpleBall(left, top)
+            obj.set({
+                'stroke': 'white',
+                'player': -1,
+            });
+
+            obj.setGradient('fill', {
+                type: 'radial',
+                r1: ballRadius * 0.1,
+                r2: ballRadius,
+                x1: ballRadius,
+                y1: ballRadius,
+                x2: ballRadius,
+                y2: ballRadius,
+                colorStops: {
+                    0: 'grey',
+                    1: 'black'
+                }
+            });
+            return obj;
+        }
+
+        function bringCenter(obj) {
+            radius = ballRadius + 3
+            switch (obj.player) {
+                case 1:
+                    obj.set({
+                        stroke: 'black',
+                    })
+                    break
+                case -1:
+                    obj.set({
+                        stroke: 'gold',
+                    })
+                    break
+            }
+            obj.animate({
+                radius: radius,
+                strokeWidth: 2,
+                left: canvasWidth / 2 - radius - 1,
+                // top: y / 2 - radius - 1,
+            }, {
+                duration: 1000,
+                onChange: canvas.renderAll.bind(canvas),
+                onComplete: function check() {
+                    // console.log(obj.getCenterPoint())
+                }
+            });
+        }
+
+        function highlightBall(ball) {
+            pLeft = ball.getCenterPoint().x
+            pTop = ball.getCenterPoint().y
+            cRadius = ballRadius + 3
+            cStrokeWidth = 2
+            console.log(pLeft + " " + pTop)
+            obj.animate({
+                left: pLeft - cRadius - cStrokeWidth / 2,
+                top: pTop - cRadius - cStrokeWidth / 2, //here
+                radius: cRadius,
+                strokeWidth: cStrokeWidth,
+                status: 'highlighted',
+            }, {
+                // duration: 1000,
+                onChange: canvas.renderAll.bind(canvas),
+                // onComplete: function check() {
+                //     console.log(obj.getCenterPoint())
+                // }
+            });
+        }
+        function highlightPlace(place) {
+            pLeft = place.getCenterPoint().x
+            pTop = place.getCenterPoint().y
+            cStrokeWidth = 2            
+            place.animate({
+                left: pLeft - placeRadius - cStrokeWidth / 2,
+                top: pTop - placeRadius - cStrokeWidth / 2,         
+                strokeWidth: cStrokeWidth,
+                // 'check': 'highlighted',
+            }, {
+                duration: 1000,
+                onChange: canvas.renderAll.bind(canvas),
+                onComplete: function check() {
+                    console.log(place.getCenterPoint())
+                }
+            });
+            place.set('status', 'highlighted')
+        }
+        function moveBallTo(ball, xCoord, yCoord) {
+            ball.animate({
+                left: xCoord - ballRadius - ballStrokeWidth / 2,
+                top: yCoord - ballRadius - ballStrokeWidth / 2,
+                radius: ballRadius,
+                strokeWidth: ballStrokeWidth,
+            }, {
+                duration: 1000,
+                onChange: canvas.renderAll.bind(canvas),
+                onComplete: function check() {
+                    console.log(ball.getCenterPoint())
+                }
+            });
+        }
+        function moveBallToLoc(ball, loc) {
+            //normalize location
+            normalizePlace(loc)
+            //move nd normalize ball
+            xCoord = loc.getCenterPoint().x
+            yCoord = loc.getCenterPoint().y
+            ball.set('location', loc.location)
+            moveBallTo(ball, xCoord, yCoord)
+            // console.log(ball.location)
+            switch (ball.player) {
+                case -1:
+                    ball.set({
+                        stroke: 'gold',
+                        // evented: true,
+                    })
+                    blackBallMap.set(loc.location, ball)
+                    break
+                case 1:
+                    ball.set({
+                        stroke: 'black',
+                        // evented: true,
+                    })
+                    whiteBallMap.set(loc.location, ball)
+                    break
+            }
+
+        }
+        function moveOut(ball) {
+            cancelAnimationFrame(globalID)
+
+            // for (b of vulnerableBalls) {
+            //     ball.set('dirty', false);                
+            // }
+
+            normalizeBalls(vulnerableBalls)
+            switch (ball.player) {
+                case 1:
+                    yCoord = y / 2
+                    xCoord = blackBall2Stack.push2(ball)
+                    console.log("push2 locs" + xCoord + yCoord)
+                    whiteBallMap.delete(ball.location)
+                    break
+                case -1:
+
+                    yCoord = canvasHeight - y / 2
+                    xCoord = whiteBall2Stack.push2(ball)
+                    console.log("push2 locs" + xCoord + yCoord)
+                    blackBallMap.delete(ball.location)
+                    break
+            }
+            ball.bringToFront()
+            moveBallTo(ball, xCoord, yCoord)
+            place = placeMap.get(ball.location)
+            console.log(place)
+            highlightPlace(place)            
+            ball.set({ 'location': -1, 'evented': false })            
+            vulnerableBalls = []            
+        }
+        function normalizePlace(loc) {
+            pLeft = loc.left
+            pTop = loc.top
+            cStrokeWidth = 1
+            loc.animate({
+                left: pLeft + cStrokeWidth / 2,
+                top: pTop + cStrokeWidth / 2,
+                strokeWidth: 1,
+                'status': 'normal',
+            }, {
+                onChange: canvas.renderAll.bind(canvas)
+            });
+        }
+        function normalizeNearbyPlaces(ball) {
+            loc = ball.location
+            for (nearbyLoc of adjacancyList.get(loc)) {
+                normalizePlace(placeMap.get(nearbyLoc[0]))
+            }
+        }
+        function highlightNearbyPlaces(ball) {
+            loc = ball.location
+            for (nearbyLoc of adjacancyList.get(loc)) {
+                highlightPlace(placeMap.get(nearbyLoc[0]))
+            }
+        }
+        function normalizeBalls(balls) {
+            if (Array.isArray(balls)) {
+                for (ball of balls) {
+                    normalizeBall(ball)
+                }
+            }
+        }
+        function normalizeBall(ball) {
+            centerX = ball.getCenterPoint().x
+            centerY = ball.getCenterPoint().y
+
+            ball.animate({
+                left: centerX - ballRadius - ballStrokeWidth / 2,
+                top: centerY - ballRadius - ballStrokeWidth / 2,
+                radius: ballRadius,
+                strokeWidth: ballStrokeWidth,
+                status: 'normal'
+            }, {
+                // duration: 1000,
+                onChange: canvas.renderAll.bind(canvas),
+                // onComplete: function check() {
+                // console.log(ball.getCenterPoint())
+                // }
+            });
+            switch (ball.player) {
+                case -1:
+                    ball.set({
+                        stroke: 'gold',
+                        // evented: true,
+                    })
+                    break
+                case 1:
+                    ball.set({
+                        stroke: 'black',
+                        // evented: true,
+                    })
+                    break
+            }
+        }
+
+        function makeVulnerable() {
+            switch (pn) {
+                case -1:
+                    for (let [location, ball] of whiteBallMap) {
+                        // if(ball.status!='immortal')
+                        vulnerableBalls.push(ball)
+                    }
+                    break
+                case 1:
+                    for (let [location, ball] of blackBallMap) {
+                        // if(ball.status!='immortal')
+                        vulnerableBalls.push(ball)
+                    }
+                    break
+            }
+            if (vulnerableBalls.length != 0) {
+                mode = "enlarge"
+                rate = 0.1
+                for (ball of vulnerableBalls) {
+                    ball.set('status', 'vulnerable')
+                }
+                var globalID = requestAnimationFrame(repeatOften)
+            }
+        }
+        function repeatOften() {
+            if (vRadius >= ballRadius && vRadius <= ballRadius + 3) {
+                actualRate = (mode == "enlarge" ? rate : -rate)
+                vRadius += actualRate
+            }
+            if (vRadius >= ballRadius + 3) {
+                mode = "shrink"
+                vRadius -= rate
+            }
+            if (vRadius <= ballRadius) {
+                mode = "enlarge"
+                vRadius += rate
+            }
+            for (ball of vulnerableBalls) {
+                shrinkEnlarge(ball)
+            }
+            canvas.renderAll()
+            globalID = requestAnimationFrame(repeatOften);
+        }
+        function shrinkEnlarge(ball) {
+            pLeft = ball.getCenterPoint().x
+            pTop = ball.getCenterPoint().y
+            ball.set({
+                left: pLeft - vRadius - ballStrokeWidth / 2,
+                top: pTop - vRadius - ballStrokeWidth / 2, //here
+                radius: vRadius,
+            });
+            // console.log(ball.radius)
+        }
+        function checkMills(cBall) {            
+            milledBalls = []
+            millsMap.set('H', 0)
+            millsMap.set('V', 0)
+            adjacentLocations = adjacancyList.get(cBall.location)
+            console.log(adjacentLocations)
+            adjacentBalls = getAdjacentBalls(cBall.player, adjacentLocations)
+            console.log("Ädjacent balls")        
+            for (let [key, value] of adjacentBalls) {
+                console.log(key + ' = ' + value)
+            }
+            if (millsMap.get('H') == 2) {
+                console.log("Horizontally")
+                milledBalls.push(cBall)
+                for (let [ball, HV] of adjacentBalls) {
+                    if (HV == 'H') {
+                        milledBalls.push(ball)
+                    }
+                }
+            } else if (millsMap.get('V') == 2) {
+                console.log("Vertically")
+                milledBalls.push(cBall)
+                for (let [ball, HV] of adjacentBalls) {
+                    if (HV == 'V') {
+                        milledBalls.push(ball)
+                    }
+                }
+            } else {
+                console.log("harder")
+                for (let [ball, HV] of adjacentBalls) {
+                    adjacentLocations = adjacancyList.get(ball.location)
+                    temp = getAdjacentBalls(ball.player, adjacentLocations)
+                    if (millsMap.get('H') == 3) {
+                        milledBalls.push(ball)
+                        for (let [ball, HV] of adjacentBalls) {
+                            if (HV == 'H') {
+                                milledBalls.push(ball)
+                            }
+                        }
+                        break
+                    } else if (millsMap.get('V') == 3) {
+                        milledBalls.push(ball)
+                        for (let [ball, HV] of adjacentBalls) {
+                            if (HV == 'V') {
+                                milledBalls.push(ball)
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            if (milledBalls.length != 0) {
+                immortalBalls.push(milledBalls)
+                makeVulnerable()
+                return true
+            } else {
+                return false
+            }
+        }
+        function getAdjacentBalls(player, adjacentLocations) {
+            adjacentBalls = new Map()
+            switch (player) {
+                case -1:
+                    for (let [location, HV] of adjacentLocations) {
+                        if (blackBallMap.get(location)) {
+                            adjacentBalls.set(blackBallMap.get(location), HV)
+                            millsMap.set(HV, millsMap.get(HV) + 1)
+                        }
+                    }
+                    break
+                case 1:
+                    for (let [location, HV] of adjacentLocations) {
+                        if (whiteBallMap.get(location)) {
+                            adjacentBalls.set(whiteBallMap.get(location), HV)
+                            millsMap.set(HV, millsMap.get(HV) + 1)
+                        }
+                    }
+                    break
+            }
+            return adjacentBalls
+        }
+    </script>
+</head>
+
+<body>
+    <center>
+        <canvas id="c" width="800" height="700">
+            Your browser does not support the HTML5 canvas tag.
+        </canvas>
+    </center>
+
+    <script>
+        var canvas = new fabric.Canvas(c);
+        var url = c.toDataURL("image/png", 1.0);
+        createGameBoard(canvas)
+
+        canvas.on('mouse:up', function (e) {
+            // console.log(e.pointer);
+            obj = e.target
+            if (obj != null) {
+                if (obj.type == 'ball') {
+                    console.log("ball clicked");
+                    // console.log(obj.getCenterPoint());                    
+                    ball = obj
+                    if (ball.status == 'vulnerable') {
+                        moveOut(ball); //push2                                                
+                        pn *= -1
+                        play()
+                    } else if (ball.status == 'normal' && ball.player == pn) {
+                        normalizeBall(highlightedBall);
+                        normalizeNearbyPlaces(highlightBall);
+                        highlightedBall = ball;
+                        highlightBall(ball);
+                        highlightNearbyPlaces(ball);
+                    }
+                }
+                if (obj.type == 'place') {
+                    console.log(obj);
+                    let place = obj
+                    if ((obj.status == 'highlighted') && highlightedBall) {
+                        let ball = highlightedBall
+                        if (ball.location == -1) { // ball comming from outside
+                            normalizePlace(place)
+                            moveBallToLoc(ball,place)
+                            if (!checkMills(ball)) {
+                                pn *= -1
+                                play()
+                            }
+                            // console.log("stop loc highlight");
+                        } else if (ball.location > -1) { // ball moving inside
+                            // console.log("stop all loc highlight");
+                            normalizeNearbyPlaces(ball)                            
+                            moveBallToLoc(ball,place)
+                            if (!checkMills(ball)) {
+                                pn *= -1
+                            }
+                        }                        
+                    }
+                }
+            }
+        });
+
+        function play() {
+            if (pn == -1) {
+                obj = blackBall2Stack.pop1()
+                if (obj != -1) {
+                    bringCenter(obj);
+                }
+
+            } else if (pn == 1) {
+                obj = whiteBall2Stack.pop1()
+                if (obj != -1) {
+                    bringCenter(obj);
+                }
+            }
+        }
+        // console.log(place24);
+        pn = 1;
+        play();
+    </script>
+</body>
+
+</html>
